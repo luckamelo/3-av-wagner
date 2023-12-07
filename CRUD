@@ -1,0 +1,180 @@
+import sqlite3
+import bcrypt
+
+class User:
+    def __init__(self, username, password):
+        self.username = username
+        self.password_hash = self._hash_password(password)
+        self.student_database = StudentDatabase()
+
+    def _hash_password(self, password):
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return password_hash
+
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash)
+
+class Student:
+    def __init__(self, student_id, nome, idade, mae, pai):
+        self.student_id = student_id
+        self.nome = nome
+        self.idade = idade
+        self.mae = mae
+        self.pai = pai
+
+class StudentDatabase:
+    def __init__(self):
+        self.conn = sqlite3.connect('students.db')
+        self.cursor = self.conn.cursor()
+        self.create_table()
+
+    def create_table(self):
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS students (
+                student_id TEXT PRIMARY KEY,
+                nome TEXT,
+                idade INTEGER,
+                mae TEXT,
+                pai TEXT
+            )
+        ''')
+        self.conn.commit()
+
+    def create_student(self, student_id, nome, idade, mae, pai):
+        self.cursor.execute('''
+            INSERT INTO students (student_id, nome, idade, mae, pai)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (student_id, nome, idade, mae, pai))
+        self.conn.commit()
+
+    def read_student(self, student_id):
+        self.cursor.execute('SELECT * FROM students WHERE student_id = ?', (student_id,))
+        result = self.cursor.fetchone()
+        if result:
+            return Student(*result)
+        return None
+
+    def update_student(self, student_id, nome, idade, mae, pai):
+        self.cursor.execute('''
+            UPDATE students
+            SET nome = ?, idade = ?, mae = ?, pai = ?
+            WHERE student_id = ?
+        ''', (nome, idade, mae, pai, student_id))
+        self.conn.commit()
+        return self.cursor.rowcount > 0
+
+    def delete_student(self, student_id):
+        self.cursor.execute('DELETE FROM students WHERE student_id = ?', (student_id,))
+        self.conn.commit()
+        return self.cursor.rowcount > 0
+
+def register_user():
+    # Função para registrar um novo usuário
+    username = input("Digite o nome de usuário: ")
+    password = input("Digite a senha: ")
+    return User(username, password)
+
+def authenticate(users):
+    # Função para autenticar o usuário
+    username = input("Digite o nome de usuário: ")
+    password = input("Digite a senha: ")
+
+    for user in users:
+        if user.username == username and user.check_password(password):
+            return user
+
+    return None
+
+def main():
+    users = []  # Lista para armazenar usuários registrados
+
+    while True:
+        print("-------CRUD WAGUINHO (LISTA DE ESTUDANTE)--------")
+        print("\nEscolha uma opção:")
+        print("1. Registrar usuário")
+        print("2. Login")
+        print("3. Sair")
+
+        choice = input("Digite o número da opção: ")
+
+        if choice == '1':
+            # Registra um novo usuário
+            new_user = register_user()
+            users.append(new_user)
+            print("Usuário registrado com sucesso!")
+
+        elif choice == '2':
+            # Autenticação do usuário
+            authenticated_user = authenticate(users)
+            if authenticated_user:
+                print("Login bem-sucedido!")
+
+                while True:
+                    print("\nEscolha uma opção:")
+                    print("1. Adicionar estudante")
+                    print("2. Listar estudantes")
+                    print("3. Atualizar estudante")
+                    print("4. Excluir estudante")
+                    print("5. Sair")
+
+                    user_choice = input("Digite o número da opção: ")
+
+                    if user_choice == '1':
+                        # Adiciona um novo estudante ao banco de dados
+                        student_id = input("Digite o ID do estudante: ")
+                        nome = input("Digite o nome do estudante: ")
+                        idade = input("Digite a idade do estudante: ")
+                        mae = input("Digite o nome da mae: ")
+                        pai = input("Digite o nome do pai: ")
+                        authenticated_user.student_database.create_student(student_id, nome, idade, mae, pai)
+                        print("Estudante adicionado com sucesso!")
+
+                    elif user_choice == '2':
+                        # Lista todos os estudantes no banco de dados
+                        print("\nLista de Estudantes:")
+                        for student in authenticated_user.student_database.students:
+                            print(f"ID: {student.student_id}, Nome: {student.nome}, Idade: {student.idade}, Mae: {student.mae}, Pai: {student.pai}")
+
+                    elif user_choice == '3':
+                        # Atualiza os detalhes de um estudante existente
+                        student_id = input("Digite o ID do estudante que deseja atualizar: ")
+                        name = input("Digite o novo nome do estudante: ")
+                        age = input("Digite a nova idade do estudante: ")
+                        mae = input("Digite o novo nome da mae: ")
+                        pai = input("Digite o novo nome do pai: ")
+                        if authenticated_user.student_database.update_student(student_id, name, age, mae, pai):
+                            print("Estudante atualizado com sucesso!")
+                        else:
+                            print("Estudante não encontrado.")
+
+                    elif user_choice == '4':
+                        # Exclui um estudante do banco de dados
+                        student_id = input("Digite o ID do estudante que deseja excluir: ")
+                        if authenticated_user.student_database.delete_student(student_id):
+                            print("Estudante excluído com sucesso!")
+                        else:
+                            print("Estudante não encontrado.")
+
+                    elif user_choice == '5':
+                        # Sai do programa
+                        print("Saindo do programa.")
+                        break
+
+                    else:
+                        # Mensagem para opção inválida
+                        print("Opção inválida. Por favor, escolha uma opção válida.")
+            else:
+                print("Falha na autenticação. Tente novamente ou registre um novo usuário.")
+
+        elif choice == '3':
+            # Sai do programa
+            print("Saindo do programa.")
+            break
+
+        else:
+            # Mensagem para opção inválida
+            print("Opção inválida. Por favor, escolha uma opção válida.")
+
+if __name__ == "__main__":
+    main()
